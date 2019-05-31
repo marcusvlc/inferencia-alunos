@@ -1,0 +1,205 @@
+---
+title: "Amostra alunos CCC x PPGCC"
+output:
+    html_document:
+    df_print: paged
+theme: sandstone
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+theme_set(theme_bw())
+
+library(broom)
+
+knitr::opts_chunk$set(tidy = FALSE,
+                      fig.width = 6,
+                      fig.height = 5)
+
+```
+
+```{r read}
+dados = read_csv(here::here("data/amostra-alunos-comfpcc.csv"))
+
+dados = dados %>%
+    rename(
+        sono_semana = `Quantas horas por noite você dorme DURANTE A SEMANA em média?`,
+        sono_fds = `Quantas horas por noite você dorme durante NO FIM DE SEMANA em média?`,
+        disciplinas = `Quantas disciplinas você está cursando esse semestre?`,
+        cafe = `Quantas xícaras de café você tomou ontem?`,
+        segue_gh = `Quantas pessoas você segue no github?`,
+        seguido_gh = `Quantas pessoas seguem você no github?`,
+        quase_concluinte = `Você está dois períodos ou menos de concluir?`
+    )
+
+dados = dados %>% 
+    mutate(data = lubridate::mdy_hms(Timestamp),
+           turma = if_else(data < as.POSIXct("2019-05-24 12:00:00"), 
+                           "cdd", 
+                           "fpcc"))%>% 
+    filter(segue_gh < 800, 
+           seguido_gh < 900)
+
+
+glimpse(dados)
+```
+
+```{r}
+dados %>% 
+    ggplot(aes(x = sono_semana)) + 
+    geom_histogram(binwidth = 1, boundary = 0) + 
+    facet_wrap(~ turma, 
+               ncol = 1)
+
+dados %>% 
+    ggplot(aes(x = sono_fds)) + 
+    geom_histogram(binwidth = 1, boundary = 0) + 
+    facet_wrap(~ turma, 
+               ncol = 1)
+```
+
+## Com ICs
+
+### FDS
+
+```{r}
+theta_diferenca_fds = function(d, i){
+    sonos = d %>% 
+        slice(i) %>% 
+        group_by(turma) %>% 
+        summarise(sono = mean(sono_fds)) 
+    
+    cdd = sonos %>% filter(turma == "cdd") %>% pull(sono)
+    fpcc = sonos %>% filter(turma == "fpcc") %>% pull(sono)
+    
+    cdd - fpcc
+}
+
+
+theta_diferenca(dados, 1:NROW(dados))
+```
+
+```{r}
+library(boot)
+dados %>% 
+    boot(statistic = theta_diferenca, R = 4000) %>% 
+    tidy(conf.level = 0.95, 
+         conf.int = TRUE)
+```
+
+### Semana
+
+
+```{r}
+theta_diferenca_semana = function(d, i){
+    sonos = d %>% 
+        slice(i) %>% 
+        group_by(turma) %>% 
+        summarise(sono = mean(sono_semana)) 
+    
+    cdd = sonos %>% filter(turma == "cdd") %>% pull(sono)
+    fpcc = sonos %>% filter(turma == "fpcc") %>% pull(sono)
+    
+    cdd - fpcc
+}
+
+
+theta_diferenca_fds(dados, 1:NROW(dados))
+```
+
+```{r}
+dados %>% 
+    boot(statistic = theta_diferenca, R = 4000) %>% 
+    tidy(conf.level = 0.95, 
+         conf.int = TRUE)
+```
+
+## Com teste de hipótese
+
+### FDS
+
+```{r}
+theta_embaralhado = function(d){
+    sonos = d %>% 
+        mutate(turma_embaralhada = sample(turma, n())) %>% 
+        group_by(turma_embaralhada) %>% 
+        summarise(sono = mean(sono_fds)) 
+    
+    cdd = sonos %>% filter(turma_embaralhada == "cdd") %>% pull(sono)
+    fpcc = sonos %>% filter(turma_embaralhada == "fpcc") %>% pull(sono)
+    
+    cdd - fpcc
+}
+
+theta_embaralhado(dados)
+```
+
+```{r}
+diffs = replicate(5000, {theta_embaralhado(dados)})
+
+tibble(diferenca = diffs) %>% 
+  ggplot(aes(x = diferenca)) + 
+  geom_histogram(binwidth = .2, fill = "white", color = "darkgreen") + 
+  geom_vline(xintercept = theta_diferenca_fds(dados, 1:NROW(dados)), 
+             color = "orange")
+```
+
+```{r}
+mean(abs(diffs) >= abs(theta_diferenca_fds(dados, 1:NROW(dados))))
+```
+
+```{r}
+library(coin)
+
+oneway_test(sono_fds ~ as.factor(turma),
+            data = dados,
+            distribution = approximate(B = 5000))
+```
+
+```{r}
+library(resample)
+
+p = permutationTest2(dados, 
+                     mean(sono_fds), 
+                     treatment = as.factor(turma))
+
+p$stats$PValue
+```
+
+## Semana
+
+```{r}
+theta_emb_semana = function(d){
+    sonos = d %>% 
+        mutate(turma_embaralhada = sample(turma, n())) %>% 
+        group_by(turma_embaralhada) %>% 
+        summarise(sono = mean(sono_semana)) 
+    
+    cdd = sonos %>% filter(turma_embaralhada == "cdd") %>% pull(sono)
+    fpcc = sonos %>% filter(turma_embaralhada == "fpcc") %>% pull(sono)
+    
+    cdd - fpcc
+}
+
+theta_emb_semana(dados)
+
+diffs = replicate(2000, {theta_emb_semana(dados)})
+
+tibble(diferenca = diffs) %>% 
+  ggplot(aes(x = diferenca)) + 
+  geom_histogram(binwidth = .2, fill = "white", color = "darkgreen") + 
+  geom_vline(xintercept = theta_diferenca_semana(dados, 1:NROW(dados)), 
+             color = "orange")
+
+sum(abs(diffs) > abs(theta_diferenca_semana(dados, 1:NROW(dados)))) / length(diffs)
+```
+
+```{r}
+library(resample)
+
+p = permutationTest2(dados, 
+                     mean(sono_semana), 
+                     treatment = turma)
+
+p$stats$PValue
+```
