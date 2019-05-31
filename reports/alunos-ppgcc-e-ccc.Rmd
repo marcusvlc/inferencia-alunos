@@ -38,6 +38,7 @@ dados = dados %>%
                            "cdd", 
                            "fpcc"))%>% 
     filter(segue_gh < 800, 
+           disciplinas < 10,
            seguido_gh < 900)
 
 
@@ -55,7 +56,8 @@ dados %>%
     ggplot(aes(x = sono_fds)) + 
     geom_histogram(binwidth = 1, boundary = 0) + 
     facet_wrap(~ turma, 
-               ncol = 1)
+               ncol = 1) + 
+    xlim(5, 10)
 ```
 
 ## Com ICs
@@ -76,7 +78,7 @@ theta_diferenca_fds = function(d, i){
 }
 
 
-theta_diferenca(dados, 1:NROW(dados))
+theta_diferenca_fds(dados, 1:NROW(dados))
 ```
 
 ```{r}
@@ -104,7 +106,7 @@ theta_diferenca_semana = function(d, i){
 }
 
 
-theta_diferenca_fds(dados, 1:NROW(dados))
+theta_diferenca_semana(dados, 1:NROW(dados))
 ```
 
 ```{r}
@@ -135,12 +137,15 @@ theta_embaralhado(dados)
 ```
 
 ```{r}
-diffs = replicate(5000, {theta_embaralhado(dados)})
+diffs1 = replicate(5000, {theta_embaralhado(dados)})
 
-tibble(diferenca = diffs) %>% 
+tibble(diferenca = diffs1) %>% 
   ggplot(aes(x = diferenca)) + 
-  geom_histogram(binwidth = .2, fill = "white", color = "darkgreen") + 
+  # geom_histogram(binwidth = .2, fill = "white", color = "darkgreen") + 
+    geom_density(fill = "white", color = "darkgreen") + 
   geom_vline(xintercept = theta_diferenca_fds(dados, 1:NROW(dados)), 
+             color = "orange") + 
+    geom_vline(xintercept = - theta_diferenca_fds(dados, 1:NROW(dados)), 
              color = "orange")
 ```
 
@@ -187,11 +192,14 @@ diffs = replicate(2000, {theta_emb_semana(dados)})
 
 tibble(diferenca = diffs) %>% 
   ggplot(aes(x = diferenca)) + 
-  geom_histogram(binwidth = .2, fill = "white", color = "darkgreen") + 
+  # geom_histogram(binwidth = .2, fill = "white", color = "darkgreen") +
+    geom_density(fill = "white", color = "darkgreen") + 
   geom_vline(xintercept = theta_diferenca_semana(dados, 1:NROW(dados)), 
+             color = "orange") + 
+    geom_vline(xintercept = -theta_diferenca_semana(dados, 1:NROW(dados)), 
              color = "orange")
 
-sum(abs(diffs) > abs(theta_diferenca_semana(dados, 1:NROW(dados)))) / length(diffs)
+sum(abs(diffs) >= abs(theta_diferenca_semana(dados, 1:NROW(dados)))) / length(diffs)
 ```
 
 ```{r}
