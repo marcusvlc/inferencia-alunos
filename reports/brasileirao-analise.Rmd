@@ -1,0 +1,64 @@
+---
+title: "Análise dos Times do Campeonato Brasileiro"
+author: "Marcus Vinicius L. Costa"
+date: "4 de junho de 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+theme_set(theme_bw())
+
+library(boot)
+library(broom)
+
+knitr::opts_chunk$set(tidy = FALSE,
+                      fig.width = 6,
+                      fig.height = 5)
+```
+
+```{r}
+dados = readr::read_csv2(here::here("data/campeonato-brasileiro-full.csv"))
+
+```
+
+### 1. Jogos aos domingos têm mais gols que jogos às quartas? 
+
+## a) Teste de hipotese com permutação
+
+```{r}
+
+theta_difference_mean_gols = function(d){
+  media_gols = d %>%
+                mutate(dia_embaralhado = sample(Dia, n())) %>%
+                group_by(dia_embaralhado) %>%
+                summarise(gol_media = mean(gols))
+  
+  media_gols_domingo = media_gols %>% filter(dia_embaralhado == "Domingo") %>% pull(gol_media)
+  media_gols_quarta = media_gols %>% filter(dia_embaralhado == "Quarta-Feira") %>% pull(gol_media) 
+  
+  media_gols_domingo - media_gols_quarta
+
+}
+
+diffs1 = replicate(5000, {theta_difference_mean_gols(dados)})
+
+tibble(diferenca = diffs1) %>% 
+  ggplot(aes(x = diferenca)) + 
+   geom_histogram(binwidth = .2, fill = "white", color = "darkgreen") 
+  
+```
+
+
+## b) Utilizando Intervalo de Confiança
+
+
+
+### 2. Jogos onde há um vitorioso têm mais ou menos gols que empates? 
+
+## a) Teste de hipotese com permutação
+
+## b) Utilizando Intervalo de Confiança
+
+
